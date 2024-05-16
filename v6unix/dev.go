@@ -52,6 +52,13 @@ import (
 
 // ↑デバイスドライバ毎に対応する関数が登録
 
+// おすすめ: https://www.tom-yam.or.jp/2238/ref/iosys.pdf
+
+// V6でのシステムコール呼び出しからデバイススイッチへの流れ
+// open(2)はnamei関数でパス名からiノード番号を探索オープンファイルテーブルをセットし、対応するインデックス（ファイル記述子）を返す。
+// read(2)、write(2)では、オープンファイルテーブルからiノードを調べ、readi、writei関数を呼ぶ。
+// 	readiはファイルがcdevならcdevsw.d_readを呼び、bdevならbreadやbreada経由でbdevsw.d_readを呼ぶ。
+
 type device interface {
 	open(*Proc, uint8, int)
 	read(*Proc, uint8, []byte, int) int
@@ -62,10 +69,12 @@ type device interface {
 	sgtty(*Proc, uint8, *[3]uint16, *[3]uint16)
 }
 
+// deviceインタフェースのスライス
+// オブジェクトのリストを保持
 var devtab = []device{
-	errdev{},
-	nulldev{},
-	memdev{},
+	errdev{},  // エラーデバイス
+	nulldev{}, // ヌルデバイス
+	memdev{},  // メモリデバイス
 	nulldev{}, // for /dev/swap
 	ttydev{},
 }
@@ -77,6 +86,8 @@ func (p *Proc) dev(major uint8) device {
 	return devtab[major]
 }
 
+// エラーデバイス
+// 全ての操作でエラーを返すデバイス
 type errdev struct{}
 
 func (errdev) open(p *Proc, minor uint8, rw int) {
@@ -101,6 +112,8 @@ func (errdev) sgtty(p *Proc, minor uint8, in, out *[3]uint16) {
 	p.Error = ENOTTY
 }
 
+// 開いたりと閉じたりできる
+// 書き込みはバイト数、読み込みは常に0
 type nulldev struct{}
 
 func (nulldev) open(p *Proc, minor uint8, rw int) {
@@ -123,42 +136,52 @@ func (nulldev) sgtty(p *Proc, minor uint8, in, out *[3]uint16) {
 
 const (
 	// as listed in unix kernel
+	// UNIXカーネルに記載されている通り
 	memSwapDev = 0o001414
 	memProcs   = 0o005206 // to 0o007322
 
 	// arbitrary choices
-	memTTY     = 0o002000 // to 0o002440
+	// 任意の選択
+	memTTY     = 0o002000 // to 0o002440  0o002440まで
 	memTTYSize = 16 * 2
 
+	// テキストセグメントの開始位置？
 	memText = 0o010000
 )
 
+// 特定のメモリ領域を模倣するデバイス
 type memdev struct{}
 
+// 特定のプロセス(p)、マイナー番号(minor)、および読み書きモード(rw)を引数に取りますが、現在は何も実行しない
 func (memdev) open(p *Proc, minor uint8, rw int) {
 }
 
+// オフセットに基づいて動作が異なる
+// 読み出したデータの長さを返す
 func (memdev) read(p *Proc, minor uint8, b []byte, off int) int {
+	// offがmemSwapDevと等しく、bの長さが2の場合、スワップデバイスのマイナーとメジャーを要求
 	if off == memSwapDev && len(b) == 2 {
-		// Asking for swap device minor, major.
-		// As long as process table always has SLOAD, will never be used,
-		// but must be able to open device.
+		// スワップデバイスのマイナー、メジャーを要求しています。
+		// プロセステーブルが常にSLOADを持つ限り、使用されることはありませんが、
+		// デバイスを開くことができなければなりません。
 		b[0] = 1
 		b[1] = 3
 		return 2
 	}
 
+	// offがmemProcsと等しい場合、プロセステーブルを要求
+	// このコードは、プロセステーブルの各エントリに対して特定の操作を行い、その結果をbにコピー
 	if off == memProcs {
-		// Asking for procs table.
+		// プロセステーブルを要求しています。
 		var procs []procState
 		for i, p1 := range p.Sys.Procs {
 			p1.procState.flag |= _SLOAD
 
-			// ps is going to use (p1.addr+p1.size-8)<<6 as the address
-			// to read 512 bytes from.
-			// Setting p1.size=8 zeros out the addend, leaving p1.addr.
-			// We separate the process base addresses by 64 bytes to allow
-			// packing many more into the "memory".
+			// psは(p1.addr+p1.size-8)<<6をアドレスとして
+			// 512バイトを読み出すつもりです。
+			// p1.size=8を設定すると、加算部分がゼロになり、p1.addrが残ります。
+			// プロセスの基本アドレスを64バイトごとに分けることで、
+			// "メモリ"に多くのプロセスを詰め込むことができます。
 			p1.addr = uint16(memText/64 + i)
 			p1.size = 8
 			procs = append(procs, p1.procState)
@@ -169,13 +192,23 @@ func (memdev) read(p *Proc, minor uint8, b []byte, off int) int {
 		return len(pb)
 	}
 
-	if memText <= off && off&63 == 0 && off < memText+64*int(len(p.Sys.Procs)) && len(b) == 512 {
+	// offがmemTextとmemTextにプロセスの数を64倍して足した値の間で、
+	// offが64の倍数で、
+	// bの長さが512の場合、
+	// 特定のプロセスのメモリを読み出し
+	if memText <= off && off < memText+64*int(len(p.Sys.Procs)) && off&63 == 0 && len(b) == 512 {
+		// offとmemTextはおそらくメモリオフセットとテキストセグメントの開始位置
+		// これらの差を64で割ることで、特定のプロセスを指すインデックスを計算
 		p1 := p.Sys.Procs[(off-memText)/64]
+		// 取得したプロセスp1のメモリ領域から最後の512バイトを取得
 		mem := p1.Mem[len(p.Mem)-512:]
 		copy(b, mem)
 		return len(b)
 	}
 
+	// offがmemTTYとmemTTYにTTYの数をmemTTYSize倍した値の間で、
+	// offからmemTTYを引いた値がmemTTYSizeの倍数で、
+	// bの長さがmemTTYSizeの場合
 	if memTTY <= off && off < memTTY+len(p.Sys.TTY)*memTTYSize && (off-memTTY)%memTTYSize == 0 && len(b) == memTTYSize {
 		i := (off - memTTY) / memTTYSize
 		tty := &p.Sys.TTY[i]
@@ -188,6 +221,7 @@ func (memdev) read(p *Proc, minor uint8, b []byte, off int) int {
 	return 0
 }
 
+// EPERM（許可されていない操作）エラーを設定し、0を返すだけ
 func (memdev) write(p *Proc, minor uint8, b []byte, off int) int {
 	p.Error = EPERM
 	return 0
@@ -196,6 +230,7 @@ func (memdev) write(p *Proc, minor uint8, b []byte, off int) int {
 func (memdev) close(p *Proc, minor uint8) {
 }
 
+// ENOTTY（不適切な ioctl（入出力制御））エラーを設定するだけ
 func (memdev) sgtty(p *Proc, minor uint8, in, out *[3]uint16) {
 	p.Error = ENOTTY
 }

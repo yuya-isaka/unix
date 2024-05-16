@@ -22,30 +22,66 @@ import (
 //go:embed disk.txtar
 var FS []byte
 
+// OSのプロセス
 type Proc struct {
+	// 匿名フィールド
+	// Proc構造体は、procState構造体のフィールドを持つ（直接継承）
 	procState
 
-	Sys     *System
-	CPU     pdp11.CPU      // cpu state
-	Mem     pdp11.ArrayMem // process memory
-	Args    [4]uint16      // syscall args
-	Error   Errno          // syscall error
-	Gid     int8           // effective group id
-	RUid    int8           // real user id
-	RGid    int8           // real group id
-	Sig     int8           // pending signal
-	Dir     *inode         // directory
-	Files   [NOFILE]*File  // fd table
-	Signals [NSIG]uint16   // signal handlers
-	Prof    [4]uint16
+	// システム全体の状態
+	Sys *System
+
+	// CPUの状態
+	CPU pdp11.CPU // cpu state
+
+	// プロセスメモリ
+	Mem pdp11.ArrayMem // process memory
+
+	// システムコールの引数
+	Args [4]uint16 // syscall args
+
+	// システムコールのエラー
+	Error Errno // syscall error
+
+	// 実効グループID
+	Gid int8 // effective group id
+
+	// 実ユーザID
+	RUid int8 // real user id
+
+	// 実グループID
+	RGid int8 // real group id
+
+	// 保留中のシグナル
+	Sig int8 // pending signal
+
+	// ディレクトリ
+	Dir *inode // directory
+
+	// ファイルディスクリプたテーブル
+	Files [NOFILE]*File // fd table
+
+	// シグナルハンドラ
+	Signals [NSIG]uint16 // signal handlers
+
+	// プロファイリング情報
+	Prof [4]uint16
+	// 時間情報
 	Times
-	Nice      int16
-	TextSize  uint16
+	// 優先度
+	Nice int16
+	// テキストサイズ
+	TextSize uint16
+	// データ開始位置
 	DataStart uint16
-	DataSize  uint16
-	wkey      any
-	sched     chan bool
-	TTY       *TTY
+	// データサイズ
+	DataSize uint16
+	//
+	wkey any
+	// スケジューリング情報を表すブール型のチャネル
+	sched chan bool
+	// 端末情報
+	TTY *TTY
 }
 
 type procState struct {

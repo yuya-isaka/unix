@@ -6,6 +6,10 @@ package v6unix
 
 import "fmt"
 
+// なぜint8なのか
+type Errno int8
+
+// UNIXのエラーコード
 const (
 	EPERM Errno = 1 + iota
 	ENOENT
@@ -41,18 +45,22 @@ const (
 	EFAULT Errno = 106
 )
 
-type Errno int8
-
+// エラーコードを受け取る
 func (e Errno) Error() string {
+	// 最後の106
 	if e == EFAULT {
 		return "EFAULT"
 	}
+
+	// エラーコードから文字列を取得
+	// 長さチェックしてからスライスにアクセスしようね〜
 	if 0 <= e && int(e) < len(enames) && enames[e] != "" {
 		return enames[e]
 	}
 	return fmt.Sprintf("Errno(%d)", int(e))
 }
 
+// エラーコードと文字列の対応
 var enames = []string{
 	"",
 	"EPERM",
