@@ -2,6 +2,17 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// Version 6 UnixまたはSixth Edition Unixは、ベル研究所が初めて所外に広くリリースしたUNIXオペレーティングシステム (OS) のバージョン
+// 1975年5月にリリース
+// 1985年まで運用をされていた
+// DECのPDP-11/40に実装されたV6
+
+// xv6が, v6を現代のC言語の文法（ANSI C）に移植したもの
+// マルチプロセッサ対応
+// RISC-V, x86
+// MITで教育目的に開発され
+// コードが10,000行程度と小さいため、OSの構造を理解するのに適している
+
 package v6unix
 
 import (
