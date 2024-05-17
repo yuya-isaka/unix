@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// v6unix への Web ブラウザベースのインターフェイス
+// go generate
+//  go run serve.go
+
 //go:generate cp $GOROOT/misc/wasm/wasm_exec.js .
 //go:generate env GOOS=js GOARCH=wasm go build -o main.wasm
 

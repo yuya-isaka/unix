@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// v6unix へのコマンドライン インターフェイス
+// go run rsc.io/unix/v6run@latest  でシミュレータを実行
+//  Ctrl + バックスラッシュを入力すると、シミュレータが終了
+
 package main
 
 import (
