@@ -4,6 +4,10 @@
 
 package pdp11
 
+// PDP-11
+// 16bit ミニコンピュータ
+// 1970 年代に DEC によって開発された
+
 import (
 	"strings"
 )
@@ -11,6 +15,7 @@ import (
 type instr struct {
 	code uint16
 	do   func(cpu *CPU)
+	// 命令のテキスト表現
 	text string
 }
 
@@ -156,22 +161,40 @@ var itab = []instr{
 	{0o177400, xldcdf, "ldcdf %f, %a"},
 }
 
+// 命令のルックアップテーブルとして機能
+// 命令のオペコードをインデックスとして使用
+// その結果としてitab内の対応する命令のインデックスを返す
 var xtab [1 << 16]uint8
 
+// xtabを初期化
+// プログラムの開始時に一度だけ呼び出される
 func init() {
 	i := 0
+	// 0 - 1<<16
 	for inst := 0; inst < 1<<16; inst++ {
+		// i=0, inst=0
+		// i=0, inst=1
+		// i=1, inst=2
+		// ..
+		// i=7, inst=8
 		if i+1 < len(itab) && inst >= int(itab[i+1].code) {
 			i++
 		}
+		// i=1, inst=1
+		// i=2, inst=2
+		// i=7, inst=8
+
 		xtab[inst] = uint8(i)
 	}
 }
 
+// 指定された16ビットの命令コードに対応する命令を返す
 func lookup(inst uint16) *instr {
+	// ここ！
 	return &itab[xtab[inst]]
 }
 
+// lookupAsm関数は、指定されたアセンブリ言語の命令に対応する命令を返す
 func lookupAsm(op string) *instr {
 	for i := range itab {
 		inst := &itab[i]
